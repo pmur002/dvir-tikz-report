@@ -1,0 +1,1255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html>
+  <head>
+    <style type="text/css">
+    @media print {
+      body { }
+      p.img { text-align: center; page-break-inside: avoid }
+      img.CC { display: inline }
+    }
+    @media screen {
+      body { max-width: 800px; margin: auto }
+      p.img { text-align: center }
+      img.CC { display: inline }
+    }
+    p.date {
+      font-size: smaller;
+      margin: 0;
+    }
+    p.versionHistory {
+      color: gray
+    }
+    p.versionHistory a {
+      color: gray
+    }
+    p.ref {
+      text-indent: -2em;
+      padding-left: 2em;
+    }
+  </style>
+  </head>
+  <body><h1>Adding TikZ support to 'dvir'</h1><p><span style="font-style: italic">by Paul Murrell</span><a href="http://orcid.org"><img alt="" src="https://www.stat.auckland.ac.nz/~paul/ORCID/ORCiD.png" style="width: 16px; height: 16px; vertical-align: middle"/></a><span style="font-family: mono; font-size: small"><a href="http://orcid.org/0000-0002-3224-8858">http://orcid.org/0000-0002-3224-8858</a></span></p><p class="date">
+    Version 1:
+    <rcode echo="FALSE" results="asis"><![CDATA[
+cat(format(Sys.Date(), "%A %d %B %Y"))
+    ]]></rcode>
+  </p><rcode id="init" echo="FALSE" message="FALSE" results="hide"><![CDATA[
+opts_chunk$set(comment=" ", tidy=FALSE, dpi=96)
+options(width=100)
+## For wonky desktop set up
+options(bitmapType="cairo")
+  ]]></rcode><rcode echo="FALSE"><![CDATA[
+    library(grid)
+  ]]></rcode><hr/><p><a rel="license" href="http://creativecommons.org/licenses/by/4.0/"><img class="CC" alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by/4.0/88x31.png"/></a><br/><span xmlns:dct="http://purl.org/dc/terms/" property="dct:title">This document</span>
+    by <span xmlns:cc="http://creativecommons.org/ns#" property="cc:attributionName">Paul
+    Murrell</span> is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative
+    Commons Attribution 4.0 International License</a>.
+  </p><hr/><p>
+    This report describes an update to the 
+    R package 'dvir' to add support for the TikZ graphics package.
+    This allows R users to make use of TikZ drawing capabilities
+    within R graphics.
+  </p><div><h2>Table of Contents:</h2><ul style="list-style: none"><li><a href="#intro">1. Introduction</a></li><li><a href="#demo">2. Support for TikZ in 'dvir'</a></li><li><a href="#user">3. User interface</a></li><li><a href="#integration">4. Integrating R graphics and TikZ graphics</a></li><li><a href="#details">5. How it works</a></li><li><a href="#discussion">6. Discussion</a></li><li><a href="#requirements">7. Technical requirements</a></li><li><a href="#Resources">8. Resources</a></li><li><a href="#references">9. References</a></li></ul></div><h2><a name="intro">1. Introduction</a></h2><p>
+    The 'dvir' package (<a href="#pkg:dvir">Murrell, 2020c</a>, <a href="#murrell-dvir">Murrell, 2018</a>)
+    provides functions for rendering TeX output on R graphics devices.
+    For example, the following code renders a simple TeX mathematical
+    expression in R graphics.
+  </p><rcode fig.width="2" fig.height="1"><![CDATA[
+library(dvir)
+grid.latex("$x - \\mu$")
+  ]]></rcode>
+
+  This allows us to produce text output within an R plot that makes
+  use of the sophisticated typesetting capabilities of TeX.
+  For example, the R plot below contains a block of text that has been
+  typeset by TeX into two columns, fully justified, including hyphenation
+  (see <a href="#murrell-dvir-luatex-2020">Murrell, 2020a</a> for the code for this example).
+
+  <p><img src="rahlf-fig-4.1.png"/></p>
+
+  <h2><a name="demo">2. Support for TikZ in 'dvir'</a></h2>
+  <p>
+    TikZ is a TeX package that allows pictures to be drawn within
+    a TeX document.  Version 0.3-0 of the 'dvir' package (for R)
+    adds support for TikZ pictures so that we can write TikZ code
+    and have the result rendered in R graphics.
+  </p>
+  <p>
+    The simplest interface to the new 'dvir' features is via
+    the function <code>grid.tikzpicture</code>.
+    For example, the following code draws (in R) a TikZ picture
+    consisting of two "nodes" connected by a curved line.
+  </p>
+
+  <rcode fig.width="2.5" fig.height="2.5"><![CDATA[
+grid.tikzpicture("\\path (0, 2) node[circle,draw](x){A} 
+                         (4, 0) node[circle,draw](y){B};
+                  \\draw (x) .. controls (2, 2) and (2, 0) .. (y);")
+  ]]></rcode>
+
+  The image below shows a more sophisticated example, where TikZ's
+  ability to draw text along a curve has been exploited to add
+  a text annotation relative to a smooth curve on a 'ggplot2' plot.
+  We will discuss the code behind this image in the Section
+  <a href="#integration">Integrating R graphics and TikZ graphics</a>.
+
+  <rcode id="ggplot2" echo="FALSE" fig.width="8" fig.height="6" results="hide" message="FALSE" fig.show="hide"><![CDATA[
+## https://data.giss.nasa.gov/gistemp/graphs/graph_data/Global_Mean_Estimates_based_on_Land_and_Ocean_Data/graph.txt       
+temps <- read.table("graph.txt", skip=5, header=FALSE, 
+                    col.names=c("year", "temp", "smooth"))
+library(ggplot2)
+ggplot(temps) + 
+    geom_line(aes(x=year, y=temp)) + 
+    geom_smooth(aes(x=year, y=temp), se=FALSE,
+                colour=adjustcolor(1, alpha=.5), lwd=3)
+grid.force()
+downViewport("panel.7-5-7-5")
+smooth <- grid.grep("GRID.polyline", grep=TRUE, global=TRUE)[[2]]
+smoothGrob <- grid.get(smooth)
+tikzPath <- function(xy) {
+    paste(paste0("(", round(convertX(smoothGrob$x, "cm", valueOnly=TRUE), 2),
+                 ",", round(convertY(smoothGrob$y, "cm", valueOnly=TRUE), 2),
+                 ")"), collapse=paste0("-", "-"))
+}
+path <- tikzPath(xy)
+grid.tikzpicture(paste("\\draw[postaction={decorate, decoration={raise=8mm, text along path,text={|\\sffamily\\Huge|the warming planet},text align=right}}] ",
+                       path,
+                       ";"),
+                 preamble=tikzpicturePreamble(packages="decorations.text"),
+                 bbox=c(0, 0, 
+                        convertWidth(unit(1, "npc"), "cm", valueOnly=TRUE),
+                        convertHeight(unit(1, "npc"), "cm", valueOnly=TRUE)))
+## Remove tikz line
+grid.remove("DVIgrob::gTree::polyline", grep=TRUE)
+## Edit tikz text
+tikzText <- grid.grep("DVIgrob::gTree::text", grep=TRUE, global=TRUE)
+cols <- hcl(seq(270, 360, length.out=length(tikzText)), 80, 60)
+for (i in seq_along(tikzText)) {
+    grid.edit(tikzText[[i]], gp=gpar(col=cols[i]), redraw=FALSE)
+}
+grid.refresh()
+  ]]></rcode>
+  <p><img src="figure/ggplot2-3.png"/></p>
+  
+  <p>
+    The next section
+    describes the full set of new user-level R functions that have been
+    added to the 'dvir' package in version 0.3-0.
+  </p>
+
+  <h2><a name="user">3. User interface</a></h2>
+
+  <p>
+    The simplest way to render a TikZ picture in R is via
+    the <code>grid.tikzpicture</code> function.  This function only
+    requires a character value containing 
+    the TikZ code necessary to describe the picture.
+    For example, the following code creates a LaTeX document
+    that consists of just a TikZ picture (and renders the result in R).
+  </p>
+  <rcode fig.width="3" fig.height="1"><![CDATA[
+grid.tikzpicture("
+\\path (0, 0) node[circle,minimum size=.5in,fill=blue!20,draw,thick] (x) {\\sffamily{R}} 
+       (3, 0) node[circle,minimum size=.5in,fill=blue!20,draw,thick] (y) {Ti{\\it k}Z!};
+\\draw[->] (x) .. controls (1, 1) and (2, 1).. (y);
+\\draw[->] (y) .. controls (2, -1) and (1, -1) .. (x);
+")
+  ]]></rcode>
+  <p>
+    If we want to draw LaTeX content that consists of both normal text
+    and a TikZ picture, we can use the <code>grid.tikz</code> function.
+    This requires that we bracket the TikZ picture with
+    <code>\begin{tikzpicture}</code>
+    and <code>\end{tikzpicture}</code>, but it takes care of loading
+    the TikZ package for us.
+  </p>
+  <rcode fig.width="6" fig.height="1"><![CDATA[
+grid.tikz("
+We can combine normal (\\LaTeX{}) text with a Ti{\\it k}Z picture.
+\\begin{tikzpicture}
+\\path (0, 0) node[circle,minimum size=.5in,fill=blue!20,draw,thick] (x) {\\sffamily{R}} 
+       (3, 0) node[circle,minimum size=.5in,fill=blue!20,draw,thick] (y) {Ti{\\it k}Z!};
+\\draw[->] (x) .. controls (1, 1) and (2, 1).. (y);
+\\draw[->] (y) .. controls (2, -1) and (1, -1) .. (x);
+\\end{tikzpicture}
+")
+  ]]></rcode>
+  <p>
+    If our TikZ picture makes use of add-on TikZ packages, those must
+    be loaded as well, which means that we must specify 
+    the <code>preamble</code> for the TeX code.
+    The <code>grid.tikz</code> and <code>grid.tikzpicture</code> 
+    functions use the 
+    <code>tikzPreamble</code> and <code>tikzpicturePreamble</code> functions
+    to generate the default preamble.
+  </p>
+  <rcode eval="FALSE"><![CDATA[
+tikzPreamble()
+  ]]></rcode>
+  <rcode echo="FALSE"><![CDATA[
+cat(tikzPreamble())
+  ]]></rcode>
+  <p>
+    Both the
+    <code>tikzPreamble</code> and <code>tikzpicturePreamble</code> functions
+    have a <code>packages</code> argument so
+    that we can specify additional TikZ packages to include in the 
+    default preamble.
+    For example, 
+    the following preamble loads the <code>decorations.pathmorphing</code>
+    package.
+  </p>
+  <rcode eval="FALSE"><![CDATA[
+tikzPreamble(packages="decorations.pathmorphing")
+  ]]></rcode>
+  <rcode echo="FALSE"><![CDATA[
+cat(tikzPreamble(packages="decorations.pathmorphing"))
+  ]]></rcode>
+  <p>
+    The following code "decorates" the arrows between
+    two labels with a "zigzag" decoration, using the
+    TikZ  package <code>decorations.pathmorphing</code>.
+  </p>
+  <rcode fig.width="3" fig.height="1"><![CDATA[
+grid.tikzpicture("
+\\path (0, 0) node[circle,minimum size=.5in,fill=blue!20,draw,thick] (x) {\\sffamily{R}} 
+       (3, 0) node[circle,minimum size=.5in,fill=blue!20,draw,thick] (y) {Ti{\\it k}Z!};
+\\draw[->, decorate, decoration=zigzag] (x) .. controls (1, 1) and (2, 1).. (y);
+\\draw[->, decorate, decoration=zigzag] (y) .. controls (2, -1) and (1, -1) .. (x);
+",
+    preamble=tikzpicturePreamble(packages="decorations.pathmorphing"))
+  ]]></rcode>
+  <p>
+    We can also use the main 'dvir' function 
+    <code>grid.latex</code> if, for example,
+    we want to select a different TeX engine.
+    However, in this case we must write an appropriate preamble that
+    loads the TikZ package and
+    specifies the <code>pgfsys-dvir.def</code> driver for TikZ,
+    and we must ensure that the <code>engine</code> uses the 
+    <code>tikzSpecial</code> function to handle TeX specials.
+  </p>
+  <p>
+    The following code draws a combination of normal text
+    plus a TikZ picture using the LuaTeX engine to typeset the content.
+    It also selects a specific font.
+    This requires a preamble that combines the relevant TeX code for the 
+    LuaTeX engine with the relevant TeX code for using the TikZ package.
+    (The <code>luaPreamble</code> function can be used to generate
+    a basic preamble for the LuaTeX engine.)
+  </p>
+  <rcode fig.width="6" fig.height="1"><![CDATA[
+grid.latex("
+We can combine normal (\\LaTeX{}) text with a TikZ picture.
+\\begin{tikzpicture}
+\\path (0, 0) node[circle,minimum size=.5in,fill=blue!20,draw,thick] (x) {\\sffamily{R}} 
+       (3, 0) node[circle,minimum size=.5in,fill=blue!20,draw,thick] (y) {TikZ!};
+\\draw[->] (x) .. controls (1, 1) and (2, 1).. (y);
+\\draw[->] (y) .. controls (2, -1) and (1, -1) .. (x);
+\\end{tikzpicture}
+",
+    preamble=c("\\RequirePackage{luatex85} % For more recent versions of LuaTeX",
+               "\\documentclass[12pt]{standalone}",
+               "\\usepackage{fontspec}",
+               paste0("\\def\\pgfsysdriver{",
+                 system.file("tikz", "pgfsys-dvir.def",
+                             package="dvir"),
+                 "}"),
+               "\\usepackage{tikz}",
+               "\\setmainfont[Mapping=text-tex]{Lato Light}",
+               "\\begin{document}",
+               "\\selectfont"),
+    engine=luaEngine(special=tikzSpecial))
+  ]]></rcode>
+  <p>
+    Once we have this much TeX code it may be more covenient to put
+    the TeX code in a separate file and use the <code>file</code>
+    argument to <code>grid.latex</code>, though we must still
+    ensure that we are using an engine that will process the TikZ specials.
+    The following code produces exactly the same result as the previous
+    code.
+  </p>
+  <rcode echo="FALSE"><![CDATA[
+## Allow file to work on local machine as well as docker container
+TeX <- whisker::whisker.render(readLines("luaTikz.template"), 
+                               list(tikzpath=system.file("tikz", 
+                                                         package="dvir")))
+writeLines(TeX, "luaTikz.tex")
+  ]]></rcode>
+  <rcode fig.keep="none"><![CDATA[
+grid.latex(file="luaTikz.tex", preamble="", postamble="",
+           engine=luaEngine(special=tikzSpecial))
+  ]]></rcode>
+  <p>
+    This file-based approach is also more convenient for checking that
+    our TeX code is correct because we can easily process the TeX
+    code outside of R, e.g., by running <code>pdflatex</code>,
+    and checking that result.
+  </p>
+
+  <h2><a name="integration">4. Integrating R graphics and TikZ graphics</a></h2>
+
+  <p>
+    Almost all of the examples so far have only consisted of a TikZ
+    picture by itself.  This section looks at the issue of combining
+    a TikZ picture with other R graphics output.
+  </p>
+  <p>
+    By default, the 'dvir' package draws TeX output within a viewport
+    that is based on the bounding box of the TeX output and, by default,
+    the TeX output is drawn in the centre of the current viewport.
+  </p>
+  <p>
+    For example, the following code draws a 'lattice' plot
+    (<a href="#pkg:lattice">Sarkar, 2008</a>),
+    navigates to the plot region viewport, and draws a label using
+    <code>grid.latex</code>.  The result is that the label is drawn
+    in the centre of the 'lattice' plot region (a grey rectangle is drawn
+    to show the extent of the bounding box of the TikZ output).
+  </p>
+  <rcode fig.width="6" fig.height="5"><![CDATA[
+library(lattice)
+xyplot(mpg ~ disp, mtcars)
+downViewport("plot_01.panel.1.1.vp")
+grid.latex("Toyota Corolla")
+downViewport("dvi.vp")
+grid.rect(gp=gpar(col="grey", fill=NA))
+  ]]></rcode>
+  <p>
+    It is possible to explicitly position the TeX output and it
+    is possible to specify an explicit 
+    justification.  For example, the following code draws the TeX label 
+    just above and to the right of the relevant data point in the
+    'lattice' plot.
+  </p>
+  <rcode fig.width="6" fig.height="5"><![CDATA[
+corolla <- mtcars[grep("Toyota", rownames(mtcars))[1],]
+xyplot(mpg ~ disp, mtcars)
+downViewport("plot_01.panel.1.1.vp")
+grid.points(corolla$disp, corolla$mpg, pch=16, gp=gpar(col="#0080ff"))
+grid.latex(rownames(corolla),
+           x=unit(corolla$disp, "native") + unit(2, "mm"),
+           y=unit(corolla$mpg, "native") + unit(2, "mm"),
+           just=c("left", "bottom"))
+downViewport("dvi.vp")
+grid.rect(gp=gpar(col="grey", fill=NA))    
+  ]]></rcode>
+  <p>
+    The next example demonstrates a more difficult task.  In this
+    case, we are drawing a TikZ picture that consists of a label
+    plus two curves from the label to two data points within the plot.
+  </p>
+  <rcode fig.width="6" fig.height="5"><![CDATA[
+toyota <- mtcars[grep("Toyota", rownames(mtcars)),]
+xyplot(mpg ~ disp, mtcars)
+downViewport("plot_01.panel.1.1.vp")
+grid.points(toyota$disp, toyota$mpg, pch=16, gp=gpar(col="#0080ff"))
+toyotaX <- convertX(unit(toyota$disp, "native"), "cm", valueOnly=TRUE)
+toyotaY <- convertY(unit(toyota$mpg, "native"), "cm", valueOnly=TRUE)
+picture <- paste(c(paste0("\\path (", toyotaX[1] + 7, ",", toyotaY[1] - 2, ") ",
+                          "node (a) {Toyotas};"),
+                   paste0("\\draw[->] (a) .. ",
+                          "controls +(left:2cm) and +(right:2cm) .. ",
+                          "(", toyotaX[1] + .2, ",", toyotaY[1], ");"),
+                   paste0("\\draw[->] (a) .. ",
+                          "controls +(left:2cm) and +(right:2cm) .. ",
+                          "(", toyotaX[2] + .2, ",", toyotaY[2], ");")),
+                 sep="\n")
+grid.tikzpicture(picture,
+                 bbox=c(0, 0, 
+                        convertWidth(unit(1, "npc"), "cm", valueOnly=TRUE),
+                        convertHeight(unit(1, "npc"), "cm", valueOnly=TRUE)))
+downViewport("dvi.vp")
+grid.rect(gp=gpar(col="red", fill=NA))    
+  ]]></rcode>
+  <p>
+    The challenge here is to align the coordinate system of the TikZ
+    picture with the 'grid' coordinate systems in R.
+    There are several points to make about the code above:
+  </p>
+  <ul><li><p>
+        The default coordinate system in a TikZ picture is in centimetres.
+      </p><p>
+        This is why the code that constructs the <code>picture</code> 
+        converts data point
+        locations from <code>"native"</code> coordinates to <code>"cm"</code>
+        (using, e.g., the <code>convertX</code> function).
+      </p></li><li><p>
+        The <code>bbox</code> argument to <code>grid.tikzpicture</code>
+        allows us to control the overall size of the TikZ picture
+        (also in centimetres).
+      </p><p>
+        In this case, the code makes sure that the TikZ
+        picture is the same size as the current 'grid' viewport.
+        In other words, locations within the TikZ picture correspond to
+        locations, in centimetres, within the current viewport.
+      </p><p>
+        A red rectangle has been drawn to show that the bounding box
+        of the TikZ picture aligns with the border of the 'lattice'
+        plot region.
+      </p></li></ul>
+  <p>
+    By specifying <code>bbox</code> in a call to <code>grid.tikzpicture</code>,
+    we are inserting a small piece of TikZ code at the end of the TikZ picture,
+    like that shown below.
+  </p>
+  <rcode><![CDATA[
+dvir:::tikzBBox(0, 0, 1, 1)
+  ]]></rcode>
+  <p>
+    We can also insert code like that at any point in our TikZ code
+    in order to control the bounding box of the TikZ picture.
+    The <code>\useasboundingbox</code> command will intersect the
+    specified rectangle with the current bounding box of the picture
+    (which can only make the bounding box smaller).
+    The <code>\pgfresetboundingbox</code> command resets the 
+    bounding box of the picture (so we can make the bounding box larger).
+  </p>
+  <p>
+    As an example, the following code reproduces the previous example,
+    but in this case, instead of using the <code>bbox</code> argument
+    to <code>grid.tikzpicture</code>, we include 
+    <code>\useasboundingbox</code> in the TikZ code.
+    (This code also does NOT include the text label, for reasons that
+    will become clearer shortly.)
+    The idea with this approach is that we set the bounding box of the
+    TikZ picture to match the range of x/y values of the two data points
+    that we are drawing lines to and then we position the TikZ picture
+    within R with its top-left corner at the top-left of the two data points.
+    A red rectangle has been added to show the TikZ picture bounding box 
+    that we enforced (and its location on the plot).
+  </p>
+  <rcode fig.width="6" fig.height="5"><![CDATA[
+xyplot(mpg ~ disp, mtcars)
+downViewport("plot_01.panel.1.1.vp")
+grid.points(toyota$disp, toyota$mpg, pch=16, gp=gpar(col="#0080ff"))
+picture <- paste(c(paste0("\\path (", toyotaX[1] + 7, ",", toyotaY[1] - 2, ") ",
+                          "node (a) {};"),
+                   paste0("\\draw[->] (a) .. ",
+                          "controls +(left:2cm) and +(right:2cm) .. ",
+                          "(", toyotaX[1] + .2, ",", toyotaY[1], ");"),
+                   paste0("\\draw[->] (a) .. ",
+                          "controls +(left:2cm) and +(right:2cm) .. ",
+                          "(", toyotaX[2] + .2, ",", toyotaY[2], ");"),
+                   paste0("\\pgfresetboundingbox\\useasboundingbox (", 
+                          toyotaX[1], ",", toyotaY[1], ") rectangle (", 
+                          toyotaX[2], ",", toyotaY[2], ");")),
+                 sep="\n")
+grid.tikzpicture(picture,
+                 x=unit(toyotaX[1], "cm"), y=unit(toyotaY[1], "cm"),
+                 just=c("left", "top"))
+downViewport("dvi.vp")
+grid.rect(gp=gpar(col="red", fill=NA))    
+  ]]></rcode>
+  <p>
+    One caveat with this approach (explicitly controlling the 
+    bounding box of the TikZ picture) is that it only works for
+    the TikZ picture AND it only works for non-text elements 
+    of the TikZ picture.  Any text, either within the TikZ picture
+    or outside it, will expand the bounding box of the overall 
+    TeX drawing.  The following code demonstrates this by adding 
+    the text label back into the TikZ picture.   We enforce
+    a bounding box on the non-text elements of the picture, but the
+    text label expands the
+    right side of the bounding box to include the label.
+    The result is still aligned correctly in this case, but more by
+    good fortune than good planning.
+  </p>
+  <rcode fig.width="6" fig.height="5"><![CDATA[
+xyplot(mpg ~ disp, mtcars)
+downViewport("plot_01.panel.1.1.vp")
+grid.points(toyota$disp, toyota$mpg, pch=16, gp=gpar(col="#0080ff"))
+picture <- paste(c(paste0("\\path (", toyotaX[1] + 7, ",", toyotaY[1] - 2, ") ",
+                          "node (a) {Toyotas};"),
+                   paste0("\\draw[->] (a) .. ",
+                          "controls +(left:2cm) and +(right:2cm) .. ",
+                          "(", toyotaX[1] + .2, ",", toyotaY[1], ");"),
+                   paste0("\\draw[->] (a) .. ",
+                          "controls +(left:2cm) and +(right:2cm) .. ",
+                          "(", toyotaX[2] + .2, ",", toyotaY[2], ");"),
+                   paste0("\\pgfresetboundingbox\\useasboundingbox (", 
+                          toyotaX[1], ",", toyotaY[1], ") rectangle (", 
+                          toyotaX[2], ",", toyotaY[2], ");")),
+                 sep="\n")
+grid.tikzpicture(picture,
+                 x=unit(toyotaX[1], "cm"), y=unit(toyotaY[1], "cm"),
+                 just=c("left", "top"))
+downViewport("dvi.vp")
+grid.rect(gp=gpar(col="red", fill=NA))    
+  ]]></rcode>
+
+  <h3>The 'ggplot2' example</h3>
+  <p>
+    This section outlines the steps required to produce the 'ggplot2' 
+    example in the Section on <a href="#demo">Support for TikZ in 'dvir'</a>.  This demonstrates
+    a more complex
+    example of integrating R graphics and TikZ graphics.  
+  </p>
+  <p>
+    The data for this plot are global temperature estimates from 
+    <a href="https://data.giss.nasa.gov/gistemp/graphs/graph_data/Global_Mean_Estimates_based_on_Land_and_Ocean_Data/graph.tx">NASA</a>.
+  </p>
+  <rcode eval="FALSE"><![CDATA[
+temps <- read.table("graph.txt", skip=5, header=FALSE, 
+                    col.names=c("year", "temp", "smooth"))    
+  ]]></rcode>
+  <p>
+    The base plot is a 'ggplot2' line plot with a smoother.
+  </p>
+  <rcode fig.width="8" fig.height="6" results="hide" message="FALSE"><![CDATA[
+ggplot(temps) + 
+    geom_line(aes(x=year, y=temp)) + 
+    geom_smooth(aes(x=year, y=temp), se=FALSE,
+                colour=adjustcolor(1, alpha=.5), lwd=3)    
+  ]]></rcode>
+  <p>
+    We are going to visit the viewports used to draw the 'ggplot2' plot
+    so a preliminary step is to "force" the 'ggplot2' plot so that we have
+    access to its viewports (and grobs).
+  </p>
+  <rcode eval="FALSE"><![CDATA[    
+grid.force()
+  ]]></rcode>
+  <p>
+    Now we can navigate to the plot region of the 'ggplot2' plot.
+  </p>
+  <rcode eval="FALSE"><![CDATA[    
+downViewport("panel.7-5-7-5")
+  ]]></rcode>
+  <p>
+    We identify and extract the 'grid' grob corresponding to the
+    smoothed line.  This is the second polyline in the plot; the first polyline
+    is the jagged line representing the raw temperature values.
+  </p>
+  <rcode eval="FALSE"><![CDATA[    
+smooth <- grid.grep("GRID.polyline", grep=TRUE, global=TRUE)[[2]]
+smoothGrob <- grid.get(smooth)
+  ]]></rcode>
+  <p>
+    This gives us access to the x/y coordinates of the smoothed line
+    and we use those to generate a TikZ path description that corresponds
+    to the smoothed line on the plot (in centimetres).
+  </p>
+  <rcode eval="FALSE"><![CDATA[    
+path <- paste(paste0("(", 
+                     round(convertX(smoothGrob$x, "cm", valueOnly=TRUE), 2),
+                     ",", 
+                     round(convertY(smoothGrob$y, "cm", valueOnly=TRUE), 2),
+                     ")"), 
+              collapse=paste0("-", "-"))
+  ]]></rcode>
+  <rcode echo="FALSE"><![CDATA[
+cat(substring(path, 1, 60), "...")
+  ]]></rcode>
+  <p>
+    Now we can call <code>grid.tikzpicture</code> to draw that path
+    and "decorate" the path with a text label: "the warming planet".
+    Note that we generate a preamble that loads the required 
+    <code>decorations.text</code> package and we specify a bounding
+    box for the TikZ picture that corresponds to the current viewport.
+  </p>
+  <rcode eval="FALSE"><![CDATA[    
+grid.tikzpicture(paste("\\draw[postaction={decorate, decoration={raise=8mm, text along path,text={|\\sffamily\\Huge|the warming planet},text align=right}}] ",
+                       path,
+                       ";"),
+                 preamble=tikzpicturePreamble(packages="decorations.text"),
+                 bbox=c(0, 0, 
+                        convertWidth(unit(1, "npc"), "cm", valueOnly=TRUE),
+                        convertHeight(unit(1, "npc"), "cm", valueOnly=TRUE)))
+  ]]></rcode>
+  <p>
+    At this point, we have the original 'ggplot2' plot with a TikZ path
+    and text decoration on top (note the thin black TikZ path on top of
+    the thick translucent 'ggplot2' smoother).
+  </p>
+  <p><img src="figure/ggplot2-1.png"/></p>
+  <p>
+    We now have 'grid' graphics in R to work with, so we can do things like
+    removing the TikZ path to just leave the text decoration ...
+  </p>
+  <rcode eval="FALSE"><![CDATA[    
+grid.remove("DVIgrob::gTree::polyline", grep=TRUE)
+  ]]></rcode>
+  <p>
+    ... and modify the colour of the individual letters in the 
+    text decoration.
+  </p>
+  <rcode eval="FALSE"><![CDATA[    
+tikzText <- grid.grep("DVIgrob::gTree::text", grep=TRUE, global=TRUE)
+cols <- hcl(seq(270, 360, length.out=length(tikzText)), 80, 60)
+for (i in seq_along(tikzText)) {
+    grid.edit(tikzText[[i]], gp=gpar(col=cols[i]), redraw=FALSE)
+}
+grid.refresh()
+  ]]></rcode>
+  <p>
+    This gives us the final result.
+  </p>
+  <p><img src="figure/ggplot2-3.png"/></p>
+
+  <h2><a name="details">5. How it works</a></h2>
+
+  <p>
+    This section describes the internal design of the TikZ support
+    in the 'dvir' package.
+  </p>
+  <p>
+    The 'dvir' package provides some light wrappers around calls to
+    the TeX engine to process TeX documents and generate DVI output.
+    The more important work done by the 'dvir' package is reading
+    the DVI output and calling the 'grid' graphics system to render
+    the result.
+  </p>
+
+  <h3>Generating DVI output</h3>
+  <p>
+    A DVI file consists mainly of a set of instructions that select a font,
+    define a location, then specify a character to draw.  For example,
+    the output below is the DVI output that corresponds to the simple
+    mathematical expression from the very first example in this report.  
+  </p>
+
+  <rcode echo="FALSE"><![CDATA[
+tex <- paste(c("\\documentclass{standalone}",
+               "\\begin{document}",
+               "$x - \\mu$",
+               "\\end{document}"),
+             collapse="")
+system(paste0("latex -jobname=tex '", tex, "'"))
+readDVI("tex.dvi")
+  ]]></rcode>
+
+  <p>
+    The DVI output above contains
+    operations like <code>down4</code> and <code>right3</code>
+    to define the location, <code>fnt_def_1</code> to define a font,
+    <code>fnt_num_10</code> to select a font, and <code>set_char_120</code>
+    to draw an 'x'.
+  </p>
+  <p>
+    How are TikZ graphics expressed in DVI output?
+    The following output shows a very simple example for
+    a TikZ picture that just draws a straight line, like the image below.
+  </p>
+  <rcode echo="FALSE"><![CDATA[
+tikzR <- paste(c("\\documentclass{standalone}",
+                 "\\def\\pgfsysdriver{",
+                 system.file("tikz", "pgfsys-dvir.def", 
+                              package="dvir"),
+                 "}",
+                 "\\usepackage{tikz}",
+                 "\\begin{document}",
+                 "\\tikz{\\draw(0,0)&#x002D;&#x002D;(1,1)}",
+                 "\\end{document}"),
+                collapse="")    
+  ]]></rcode>
+  <rcode echo="FALSE" fig.width="1" fig.height="1"><![CDATA[
+grid.tikz(tikzR, preamble="", postamble="")
+  ]]></rcode>
+  <p>
+    Only the relevant section of the DVI output is shown.
+  </p>
+
+  <rcode echo="FALSE"><![CDATA[
+tikz <- paste(c("\\documentclass{standalone}",
+                "\\usepackage{tikz}",
+                "\\begin{document}",
+                "\\tikz{\\draw(0,0)&#x002D;&#x002D;(1,1)}",
+                "\\end{document}"),
+               collapse="")
+system(paste0("latex -jobname=tikz '", tikz, "'"))
+dvi <- capture.output(readDVI("tikz.dvi"))
+start <- grep("[begin]", dvi, fixed=TRUE) - 1
+end <- grep("[end]", dvi, fixed=TRUE)
+cat(dvi[start:end], sep="\n")
+  ]]></rcode>
+
+  <p>
+    The main point is that TikZ pictures become "special" operations in DVI 
+    output (<code>xxx1</code>).  
+  </p>
+  <p>
+    The special operations describe
+    how to draw the straight line.
+    There are operations to set the drawing color (<code>setgray</code>),
+    set the line width (<code>pgfw</code>), define a "path"
+    (<code>moveto</code> and <code>lineto</code>),
+    and "stroke" the path (<code>pgfstr</code>).
+  </p>
+  <p>
+    Anyone familiar with the PostScript language 
+    (<a href="#10.5555/297697">Adobe Systems Inc., 1999</a>), will recognise
+    the content of the TikZ special operations as PostScript commands.
+    By default (when using <code>latex</code> as the TeX engine), TikZ 
+    produces PostScript commands in DVI output.
+  </p>
+  <p>
+    It is possible to generate DVI output with TikZ pictures represented
+    by commands in other languages.  For example, the DVI below 
+    is for the same TikZ path, 
+    but by selecting the <code>pgfsys-dvisvgm.def</code>
+    "driver", it produces SVG in the DVI output.  
+    Again, we only show the relevant part of the DVI output.
+  </p>
+
+  <rcode echo="FALSE"><![CDATA[
+tikzSVG <- paste(c("\\documentclass{standalone}",
+                   "\\def\\pgfsysdriver{pgfsys-dvisvgm.def}",
+                   "\\usepackage{tikz}",
+                   "\\begin{document}",
+                   "\\tikz{\\draw(0,0)&#x002D;&#x002D;(1,1)}",
+                   "\\end{document}"),
+                  collapse="")
+system(paste0("latex -jobname=tikzSVG -output-format=dvi '", tikzSVG, "'"))
+dvi <- capture.output(readDVI("tikzSVG.dvi"))
+start <- min(grep("<g", dvi, fixed=TRUE)) - 1
+end <- max(grep("/g>", dvi, fixed=TRUE))
+cat(dvi[start:end], sep="\n")
+  ]]></rcode>
+
+  <p>
+    Even better, it is possible to write a custom TikZ driver so that
+    we can control the TikZ commands in DVI output.
+    The 'dvir' package includes a <code>pgfsys-dvir.def</code> file
+    that defines such a driver.  An example of its output is shown below,
+    again just for the simple straight line TikZ picture
+    (note the <code>dvir::</code> prefixes).
+  </p>
+
+  <rcode echo="FALSE"><![CDATA[
+system(paste0("latex -jobname=tikzR -output-format=dvi '", tikzR, "'"))
+dvi <- capture.output(readDVI("tikzR.dvi"))
+start <- grep("begin-picture", dvi, fixed=TRUE) - 1
+end <- grep("end-picture", dvi, fixed=TRUE)
+cat(dvi[start:end], sep="\n")
+  ]]></rcode>
+  
+  <p>
+    Now that we can control the representation of TikZ pictures
+    in DVI output, the 'dvir' package is essentially able to 
+    "talk to itself";  it knows what the TikZ output will look like
+    because it wrote the TikZ output.
+  </p>
+  
+  <h3>Converting DVI output to 'grid' grobs</h3>
+  <p>
+    If we look closer at the DVI output above, we can see that the
+    DVI content that represents the TikZ picture has the following structure:
+  </p>
+  <pre>
+    begin-picture
+      begin-scope
+        new-path
+          moveto ...:lineto ...
+        stroke
+      end-scope
+    end-picture
+  </pre>
+
+  <p>
+    This DVI content is converted to 'grid' objects as follows:
+  </p>
+  <ul><li><p><code>begin-picture</code> starts a new off-screen graphics device
+        (using <code>void_dev</code> from the 'devoid' package; 
+        <a href="#pkg:devoid">Pedersen, 2020a</a>).
+        This off-screen device provides a temporary "canvas" for 
+        drawing the TikZ picture.
+      </p></li><li><p><code>begin-scope</code> pushes a 'grid' viewport. 
+      </p><p>
+        The viewport may enforce
+        graphical parameters such as stroke
+        and fill colour if any settings are included
+        in the <code>begin-scope</code> special.
+      </p></li><li><p><code>new-path</code> also pushes a viewport, possibly
+        also setting graphical parameters, and initialises the
+        current "path" (a set of x- and y-values).
+      </p></li><li><p><code>moveto</code> and <code>lineto</code> add points to 
+        the current path.  
+      </p><p><code>curveto</code> is also possible,
+        to describe a Bezier curve relative to control points.  That is
+        converted to a series of straight lines, whose vertices are 
+        added to the current path.  
+      </p><p><code>close</code> is also possible,
+        to describe that (this section of) the path should be closed
+        by connecting the last point back to the first point in the path.
+      </p></li><li><p><code>stroke</code> strokes the current path
+        using <code>grid::polyline</code>.  
+        If the path is closed, <code>grid::path</code> is used instead
+        (with fill set to "transparent").
+      </p><p><code>fill</code> is also possible, in which case the path is
+        closed (if it is not already) and the current path is filled
+        using <code>grid::path</code>
+        (with colour set to "transparent" so that the border is not drawn).
+      </p><p>
+        After drawing the path,
+        the viewport that was pushed by <code>new-path</code>
+        is popped.
+      </p></li><li><p><code>end-scope</code> pops the viewport that was pushed by
+        <code>begin-scope</code>.
+      </p></li><li><p><code>end-picture</code> uses <code>grid.grab</code> to capture
+        the picture on the off-screen device as a 'grid' gTree and closes
+        the off-screen device.
+      </p><p>
+        The gTree is returned and possibly drawn, depending on whether
+        the drawing was initiated by a function like <code>grid.latex</code>
+        or a function like <code>latexGrob</code>.
+      </p></li></ul>
+
+  <p>
+    This render-off-screen-then-capture
+    approach is also applied to standard DVI output,
+    which is a change from previous versions of 'dvir'.
+    In previous versions, 'grid' grobs were generated from each DVI operation
+    and accumulated in a final gTree.  Now, each DVI operation produces
+    drawing (off-screen) and then a <code>grid.grab</code> generates the
+    final gTree.
+  </p>
+  <p>
+    A further complication arises when a TikZ picture contains text labels
+    like the image below.
+  </p>
+  <rcode echo="FALSE"><![CDATA[
+tikzRlabel <- paste(c("\\documentclass{standalone}",
+                      "\\def\\pgfsysdriver{",
+                      system.file("tikz", "pgfsys-dvir.def", 
+                                   package="dvir"),
+                      "}",
+                      "\\usepackage{tikz}",
+                      "\\begin{document}",
+                      "\\tikz{\\draw(0,0)&#x002D;&#x002D;(1,1); \\path(1,0)node{a};}",
+                      "\\end{document}"),
+                     collapse="")    
+  ]]></rcode>
+  <rcode echo="FALSE" fig.width="1" fig.height="1"><![CDATA[
+grid.tikz(tikzRlabel, preamble="", postamble="")
+  ]]></rcode>
+  <p>
+    The following output shows the relevant DVI snippet.
+  </p>  
+  <rcode echo="FALSE"><![CDATA[
+system(paste0("latex -jobname=tikzRlabel '", tikzRlabel, "'"))
+dvi <- capture.output(readDVI("tikzRlabel.dvi"))
+start <- grep("begin-picture", dvi, fixed=TRUE) - 1
+end <- grep("end-picture", dvi, fixed=TRUE)
+cat(dvi[start:end], sep="\n")
+  ]]></rcode>
+  <p>
+    The label is recorded as a standard DVI <code>set_char</code>,
+    but it is positioned by a special <code>transform</code>.
+    A TikZ picture can also generate <code>transform</code> output
+    for so-called "protocolled" picture elements (e.g., arrow heads).
+    For every <code>transform</code>, we push a new 'grid' viewport
+    to position the 'grid' drawing appropriately.
+    The viewports generated by <code>transform</code> specials
+    are popped again at the next <code>end-scope</code>.
+  </p>
+  
+  <h3>Metric calculations</h3>
+  <p>
+    The above description applies to the "rendering" sweep through the
+    DVI content.  That is preceded by a font sweep (to process all font 
+    definitions in
+    the DVI content) and a metric sweep (to determine the bounding box
+    for the DVI content).  No action is taken for special (TikZ) DVI content
+    during the font sweep.
+  </p>
+  <p>
+    The metric sweep is relatively straightforward, mostly consisting
+    of simply reading 
+    the bounding box information from the <code>end-picture</code>.
+    The only complication is from text labels within a TikZ picture.
+    The metric
+    sweep also maintains a stack of transforms so that the overall
+    DVI bounding box is calculated correctly for these text labels.
+  </p>
+
+  <h2><a name="discussion">6. Discussion</a></h2>
+
+  <p>
+    Version 0.3-0 of the 'dvir' package includes support for 
+    TikZ pictures within a TeX document.  This allows us to make use of
+    the graphics capabilites of TikZ to draw images in R. 
+    TikZ's graphics 
+    capabilities are quite extensive (its 
+    <a href="http://mirror.aut.ac.nz/CTAN/graphics/pgf/base/doc/pgfmanual.pdf">manual</a> runs to over 1300 pages),
+    including sophisticated path construction, three-dimensional drawings,
+    ERD diagrams, data visualisations, and much more.
+  </p>
+  <p>
+    The idea behind adding TikZ support to 'dvir' is that we get access 
+    to all of TikZ's capabilities in one swoop.
+    By allowing R to understand TikZ output (in DVI files), we can render
+    any TikZ picture as part of an R image (though see 
+    the section on limitations below).
+  </p>
+
+  <h3>The 'tikzDevice' package</h3>
+  <p>
+    The most obvious alternative to 'dvir' is the 'tikzDevice' package 
+    (<a href="#pkg:tikzDevice">Sharpsteen and Bracken, 2020</a>).
+    This provides an R graphics device that converts R's graphical output
+    to TikZ pictures;  essentially the inverse of what 'dvir' does.
+    The end result is similar in that we have a combination of R graphics
+    capabilities and TikZ capabilities.  
+  </p>
+  <p>
+    The difference is that, with
+    'tikDevice', we start in R, generate an image, export it to a TikZ picture
+    and we end up with TeX code that we can embed in 
+    (and potentially integrate with) a TeX document.  We end up in
+    the TeX world.
+  </p>
+  <p>
+    With 'dvir', we start in R, generate a TikZ picture (TeX code), 
+    convert that to DVI, then import (and integrate) the result back into R.
+    We end up in the R world.
+  </p>
+  <p>
+    Each option has advantages for different scenarios, or at least for
+    different stages in a visualisation project.  
+    Ending up in R is possibly more useful when we are
+    in the process of building a data visualisation.  It may be easier to
+    add and combine further drawing.
+    Ending up in TeX 
+    is a good place to be when we want to incorporate a data visualisation
+    within a larger document like a
+    report or book.  
+  </p>
+  <!-- 
+
+https://r.789695.n4.nabble.com/Control-over-character-height-width-skew-etc-td4679630.html#a4684591
+
+"I tried using tikzDevice, but that failed for complicated
+plots. E.g. maps with road networks from a shapefile become enormous
+tikz files, causing the LaTeX compilation to fail."
+
+-->
+  <p>
+    It is also possible to use 'tikzDevice' and 'dvir' in concert.
+    We could make use of 'tikzDevice' to help generate TikZ code
+    (e.g., using <code>tikz(console=TRUE, bareBones=TRUE)</code>)
+    and an R image that we export to TeX via 'tikzDevice' could 
+    conceivably include R graphics output that contains elements
+    that were generated by 'dvir'
+    (from TikZ code).
+  </p>
+  
+  <h3>Other approaches</h3>
+  <p>
+    An alternative approach to providing TikZ-like graphics capabilities 
+    is to reimplement those capabilities in R.  
+    For example, the 'plotrix' package 
+    (<a href="#pkg:plotrix">J, 2006</a>)
+    has an <code>arctext</code> function for drawing text along an
+    arc of a circle.  Many other packages, like 'ggforce' 
+    (<a href="#pkg:ggforce">Pedersen, 2020b</a>),
+    add various drawing capabilities.
+    The advantage of 'dvir' is that we can access all of TikZ without
+    having to reimplement any of it.  
+  </p>
+  <p>
+    This does not remove the need for
+    R packages that implement new graphics features.  There are R packages
+    that add capabilities that (as far as I can tell)
+    are not (easily) available in TikZ,
+    like 'vwline' (<a href="#pkg:vwline">Murrell, 2019</a>).  
+    Furthermore, the 'dvir' package only
+    works on specific R graphics devices, so there is value in
+    R packages that work
+    across all graphics devices.  Finally, R packages that implement
+    a feature similar to a TikZ capability are unlikely to overlap
+    precisely with the TikZ capability, with features missing on either
+    side.
+  </p>
+
+  <h3>Limitations of 'dvir'</h3>
+  <p>
+    In addition to the existing limitations of 'dvir' (such as
+    support only being available for PDF and Cairo devices), 
+    there are some limits on the TikZ support within 'dvir'.
+  </p>
+  <p>
+    TikZ (and the underlying PGF system) allow the user to control
+    the coordinate system within which drawing occurs.
+    At the time of writing, the 'dvir' package assumes that 
+    locations within TikZ code are in the default coordinate
+    system of centimetres.  It also assumes that the values 
+    in TikZ's DVI output are in millimetres (unless they carry
+    an explicit unit).  This is vulnerable to internal changes
+    to TikZ and possibly to the user writing TikZ code in 
+    a different coordinate system.
+  </p>
+  <p>
+    The PGF system also allows more complex control of coordinate systems,
+    including a "canvas transform" that can include scaling and shearing
+    transformations (in addition to translation and rotation).
+    The 'dvir' package can currently only cope with this canvas transform
+    as long as it only involves translation and/or rotation.
+    This means that some TikZ pictures will not be drawn correctly.
+    On the other hand, the PGF/TikZ manual provides
+    stern warnings about using the canvas transformation matrix,
+    so hopefully this limitation will not be common.
+  </p>
+  <p>
+    Another difficulty with the TikZ support in 'dvir' is
+    that the R user has to write raw TikZ code.  This is both 
+    unfamiliar code for an R user and the flexible, somewhat
+    natural-language syntax that TikZ allows, can be difficult to absorb.
+    This leads us nicely on to the next section on future work.
+  </p>
+
+  <h3>Future work</h3>
+  <p>
+    The TikZ support in 'dvir' is not yet complete.
+    For example, 
+    clipping,
+    gradient fills,
+    and pattern fills are not yet supported.
+    With the improved support for these features in the
+    R graphics engine for R 4.1.0 
+    (<a href="#murrell-definitions-2020">Murrell, 2020b</a>), adding these capabilites
+    to 'dvir' should be possible in the future.
+  </p>
+  <p>
+    As pointed out in the previous section, writing raw TikZ 
+    may not be the easiest task for an R user.
+    This suggests that there might be value in an
+    R function interface to generating TikZ code.
+    As we can see with functions like <code>tikzPreamble</code>,
+    it can be useful to have R functions that help to generate
+    TeX code (and it is straightforward to write such functions).
+    Such TeX-generating R functions already exist in several packages,
+    e.g., 'xtable' (<a href="#pkg:xtable">Dahl et al., 2019</a>), 
+    but an R interface to TikZ graphics
+    would be an interesting addition (and an interesting challenge).
+  </p>
+  <p>
+    The TikZ package is just one way to draw graphics in the TeX
+    world.  There may be opportunities to support other TeX-based 
+    graphics systems by adding support in 'dvir' for other sets 
+    of DVI specials.
+    Unfortunately, support for one major alternative, PStricks 
+    (<a href="#pstricks">Zandt, 2007</a>),
+    does not make sense because PStricks produces DVI specials that are
+    specifically designed for PostScript output.  It does not have 
+    the concept of multiple backends like TikZ does.
+    Importing DVI with PStricks specials could possibly be achieved by
+    capturing 
+    chunks of PostScript output within DVI using the  'grImport' package 
+    (<a href="#pkg:grImport">Murrell, 2009</a>),
+    but a better approach
+    would be just to generate PostScript from the whole TeX file
+    and 'grImport' that entire PostScript file (although that may require
+    improvements to the
+    font import facilities in 'grImport').
+  </p>
+
+  <h2><a name="requirements">7. Technical requirements</a></h2>
+  <p>
+    The examples and discussion in this document relate to <a href="https://github.com/pmur002/dvir/releases/tag/v0.3-0">version
+    0.3-0</a> of the 'dvir' package.
+  </p>
+  <p>
+    This report was generated within a Docker container
+    (see the <a href="#Resources">Resources</a> section below).
+  </p>
+
+  <h2><a name="Resources">8. Resources</a></h2>
+  <ul><li>
+      The <a href="dvir-tikz.cml">raw source file</a> for this
+      report, a <a href="dvir-tikz.xml">valid XML</a>
+      transformation of the source file, a <a href="dvir-tikz.Rhtml">'knitr' document</a> generated from
+      the XML file, 
+      two <a href="toc.R">R</a> <a href="bib.R">files</a> and
+      the <a href="dvir-tikz.bib">bibtex file</a>
+      that are used to generate the table of contents and reference sections,
+      two <a href="common.xsl">XSL</a> <a href="knitr.xsl">files</a> and an 
+      <a href="knit.R">R file</a> that are used to transform the XML to
+      the 'knitr' document, and a <a href="Makefile">Makefile</a> that
+      contains code for the other transformations and coordinates
+      everything.  
+      These materials are also available
+      on <a href="https://github.com/pmur002/dvir-tikz-report/releases/tag/v1">github</a>.
+    </li><li>
+      The LaTeX document used in one example is:
+      <a href="luaTikz.tex"><code>luaTikz.tex</code></a>.
+    </li><li>
+      This report was generated within a 
+      <a href="https://www.docker.com/">Docker</a> container.
+      The Docker command to build the report is included in the Makefile above.
+      The Docker image for the container is available from
+      <a href="https://hub.docker.com/r/pmur002/dvir-tikz/">Docker Hub</a>;
+      alternatively, the image can be rebuilt from its 
+      <a href="Dockerfile">Dockerfile</a>.
+    </li></ul>
+
+  <h2>How to cite this document</h2>
+  <p>
+    Murrell, P. (2020). 
+    "Adding TikZ support to 'dvir'" 
+    Technical Report 2020-??, Department of Statistics, The University of Auckland. 
+    [ <a href="how-to-cite.bib">bib</a> |
+      <a href="http://doi.org/10.17608/k6.auckland.12133281">DOI</a> | 
+      <a href="http://stattech.blogs.auckland.ac.nz/">http</a> ]
+  </p>
+
+  <h2><a name="references">9. References</a></h2>
+  <dl><dt>
+[<a name="10.5555/297697">Adobe Systems Inc., 1999</a>]
+</dt><dd>
+Adobe Systems Inc., C. (1999).
+ <em>PostScript Language Reference (3rd Ed.)</em>.
+ Addison-Wesley Longman Publishing Co., Inc., USA.
+[ <a href="dvir-tikz-bib_bib.html#10.5555/297697">bib</a> ]
+
+</dd><dt>
+[<a name="pkg:xtable">Dahl et al., 2019</a>]
+</dt><dd>
+Dahl, D. B., Scott, D., Roosen, C., Magnusson, A., and Swinton, J. (2019).
+ <em>xtable: Export Tables to LaTeX or HTML</em>.
+ R package version 1.8-4.
+[ <a href="dvir-tikz-bib_bib.html#pkg:xtable">bib</a> | 
+<a href="https://CRAN.R-project.org/package=xtable">http</a> ]
+
+</dd><dt>
+[<a name="pkg:plotrix">J, 2006</a>]
+</dt><dd>
+J, L. (2006).
+ Plotrix: a package in the red light district of r.
+ <em>R-News</em>, 6(4):8&#x002D;&#x002D;12.
+[ <a href="dvir-tikz-bib_bib.html#pkg:plotrix">bib</a> ]
+
+</dd><dt>
+[<a name="Knuth:1986:TEX:1102013">Knuth, 1986</a>]
+</dt><dd>
+Knuth, D. E. (1986).
+ <em>The TeXbook</em>.
+ Addison-Wesley Professional.
+[ <a href="dvir-tikz-bib_bib.html#Knuth:1986:TEX:1102013">bib</a> ]
+
+</dd><dt>
+[<a name="pkg:grImport">Murrell, 2009</a>]
+</dt><dd>
+Murrell, P. (2009).
+ Importing vector graphics: The grImport package for R.
+ <em>Journal of Statistical Software</em>, 30(4):1&#x002D;&#x002D;37.
+[ <a href="dvir-tikz-bib_bib.html#pkg:grImport">bib</a> | 
+<a href="http://www.jstatsoft.org/v30/i04/">http</a> ]
+
+</dd><dt>
+[<a name="murrell-dvir">Murrell, 2018</a>]
+</dt><dd>
+Murrell, P. (2018).
+ Revisiting mathematical equations in R: the 'dvir' package.
+ Technical Report 2018-08, Department of Statistics, The University of
+  Auckland.
+ version 2.
+[ <a href="dvir-tikz-bib_bib.html#murrell-dvir">bib</a> ]
+
+</dd><dt>
+[<a name="pkg:vwline">Murrell, 2019</a>]
+</dt><dd>
+Murrell, P. (2019).
+ <em>vwline: Draw Variable-Width Lines</em>.
+ R package version 0.2-2.
+[ <a href="dvir-tikz-bib_bib.html#pkg:vwline">bib</a> | 
+<a href="https://CRAN.R-project.org/package=vwline">http</a> ]
+
+</dd><dt>
+[<a name="murrell-dvir-luatex-2020">Murrell, 2020a</a>]
+</dt><dd>
+Murrell, P. (2020a).
+ The agony and the ecstacy: Adding luatex support to 'dvir'.
+ Technical Report 2020-02, Department of Statistics, The University of
+  Auckland.
+ version 1.
+[ <a href="dvir-tikz-bib_bib.html#murrell-dvir-luatex-2020">bib</a> | 
+<a href="http://doi.org/10.17608/k6.auckland.12133281">DOI</a> | 
+<a href="http://stattech.blogs.auckland.ac.nz/2020/04/16/2020-02-the-agony-and-the-ecstacy-adding-luatex-support-to-dvir">http</a> ]
+
+</dd><dt>
+[<a name="murrell-definitions-2020">Murrell, 2020b</a>]
+</dt><dd>
+Murrell, P. (2020b).
+ Catching up with r graphics.
+ Technical Report 2020-04, Department of Statistics, The University of
+  Auckland.
+ version 1.
+[ <a href="dvir-tikz-bib_bib.html#murrell-definitions-2020">bib</a> | 
+<a href="http://dx.doi.org/10.17608/k6.auckland.12649751">DOI</a> | 
+<a href="https://stattech.blogs.auckland.ac.nz/2020/07/14/2020-04-catching-up-with-r-graphics/">http</a> ]
+
+</dd><dt>
+[<a name="pkg:dvir">Murrell, 2020c</a>]
+</dt><dd>
+Murrell, P. (2020c).
+ <em>dvir: Render DVI Files</em>.
+ R package version 0.2-0.
+[ <a href="dvir-tikz-bib_bib.html#pkg:dvir">bib</a> ]
+
+</dd><dt>
+[<a name="pkg:devoid">Pedersen, 2020a</a>]
+</dt><dd>
+Pedersen, T. L. (2020a).
+ <em>devoid: A Graphic Device that Does Nothing</em>.
+ R package version 0.1.1.
+[ <a href="dvir-tikz-bib_bib.html#pkg:devoid">bib</a> | 
+<a href="https://CRAN.R-project.org/package=devoid">http</a> ]
+
+</dd><dt>
+[<a name="pkg:ggforce">Pedersen, 2020b</a>]
+</dt><dd>
+Pedersen, T. L. (2020b).
+ <em>ggforce: Accelerating 'ggplot2'</em>.
+ R package version 0.3.2.
+[ <a href="dvir-tikz-bib_bib.html#pkg:ggforce">bib</a> | 
+<a href="https://CRAN.R-project.org/package=ggforce">http</a> ]
+
+</dd><dt>
+[<a name="R">R Core Team, 2019</a>]
+</dt><dd>
+R Core Team (2019).
+ <em>R: A Language and Environment for Statistical Computing</em>.
+ R Foundation for Statistical Computing, Vienna, Austria.
+[ <a href="dvir-tikz-bib_bib.html#R">bib</a> | 
+<a href="https://www.R-project.org/">http</a> ]
+
+</dd><dt>
+[<a name="pkg:lattice">Sarkar, 2008</a>]
+</dt><dd>
+Sarkar, D. (2008).
+ <em>Lattice: Multivariate Data Visualization with R</em>.
+ Springer, New York.
+ ISBN 978-0-387-75968-5.
+[ <a href="dvir-tikz-bib_bib.html#pkg:lattice">bib</a> | 
+<a href="http://lmdvr.r-forge.r-project.org">http</a> ]
+
+</dd><dt>
+[<a name="pkg:tikzDevice">Sharpsteen and Bracken, 2020</a>]
+</dt><dd>
+Sharpsteen, C. and Bracken, C. (2020).
+ <em>tikzDevice: R Graphics Output in LaTeX Format</em>.
+ R package version 0.12.3.1.
+[ <a href="dvir-tikz-bib_bib.html#pkg:tikzDevice">bib</a> | 
+<a href="https://CRAN.R-project.org/package=tikzDevice">http</a> ]
+
+</dd><dt>
+[<a name="pstricks">Zandt, 2007</a>]
+</dt><dd>
+Zandt, T. V. (2007).
+ <em>PSTricks: PostScript macros for Generic TeX</em>.
+[ <a href="dvir-tikz-bib_bib.html#pstricks">bib</a> | 
+<a href="https://tug.org/PSTricks/main.cgi?file=doc/docs">http</a> ]
+
+</dd></dl>
+
+  <hr/>
+  <p><a rel="license" href="http://creativecommons.org/licenses/by/4.0/"><img class="CC" alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by/4.0/88x31.png"/></a><br/><span xmlns:dct="http://purl.org/dc/terms/" property="dct:title">This document</span>
+    by <span xmlns:cc="http://creativecommons.org/ns#" property="cc:attributionName">Paul
+    Murrell</span> is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative
+    Commons Attribution 4.0 International License</a>.
+  </p>
+
+
+</body>
+</html>

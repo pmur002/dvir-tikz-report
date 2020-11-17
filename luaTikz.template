@@ -1,0 +1,16 @@
+\RequirePackage{luatex85} % For more recent versions of LuaTeX
+\documentclass[12pt]{standalone}
+\usepackage{fontspec}
+\def\pgfsysdriver{ {{tikzpath}}/pgfsys-dvir.def}
+\usepackage{tikz}
+\setmainfont[Mapping=text-tex]{Lato Light}
+\begin{document}
+\selectfont
+We can combine normal (\LaTeX{}) text with a Ti{\it k}Z picture.
+\begin{tikzpicture}
+\path (0, 0) node[circle,minimum size=.5in,fill=blue!20,draw,thick] (x) {\sffamily{R}} 
+       (3, 0) node[circle,minimum size=.5in,fill=blue!20,draw,thick] (y) {TikZ!};
+\draw[->] (x) .. controls (1, 1) and (2, 1).. (y);
+\draw[->] (y) .. controls (2, -1) and (1, -1) .. (x);
+\end{tikzpicture}
+\end{document}
