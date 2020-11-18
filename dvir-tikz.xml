@@ -295,7 +295,7 @@ grid.latex(file="luaTikz.tex", preamble="", postamble="",
     a TikZ picture with other R graphics output.
   </p>
   <p>
-    By default, the 'dvir' package draws TeX output within a viewport
+    By default, the 'dvir' package draws TeX output within a 'grid' viewport
     that is based on the bounding box of the TeX output and, by default,
     the TeX output is drawn in the centre of the current viewport.
   </p>
@@ -346,14 +346,16 @@ downViewport("plot_01.panel.1.1.vp")
 grid.points(toyota$disp, toyota$mpg, pch=16, gp=gpar(col="#0080ff"))
 toyotaX <- convertX(unit(toyota$disp, "native"), "cm", valueOnly=TRUE)
 toyotaY <- convertY(unit(toyota$mpg, "native"), "cm", valueOnly=TRUE)
+path <- paste(c(paste0("\\draw[->] (a) .. ",
+                       "controls +(left:2cm) and +(right:2cm) .. ",
+                       "(", toyotaX[1] + .2, ",", toyotaY[1], ");"),
+                paste0("\\draw[->] (a) .. ",
+                       "controls +(left:2cm) and +(right:2cm) .. ",
+                       "(", toyotaX[2] + .2, ",", toyotaY[2], ");")),
+               sep="\n")
 picture <- paste(c(paste0("\\path (", toyotaX[1] + 7, ",", toyotaY[1] - 2, ") ",
                           "node (a) {Toyotas};"),
-                   paste0("\\draw[->] (a) .. ",
-                          "controls +(left:2cm) and +(right:2cm) .. ",
-                          "(", toyotaX[1] + .2, ",", toyotaY[1], ");"),
-                   paste0("\\draw[->] (a) .. ",
-                          "controls +(left:2cm) and +(right:2cm) .. ",
-                          "(", toyotaX[2] + .2, ",", toyotaY[2], ");")),
+                   path),
                  sep="\n")
 grid.tikzpicture(picture,
                  bbox=c(0, 0, 
@@ -410,7 +412,8 @@ dvir:::tikzBBox(0, 0, 1, 1)
     but in this case, instead of using the <code>bbox</code> argument
     to <code>grid.tikzpicture</code>, we include 
     <code>\useasboundingbox</code> in the TikZ code.
-    (This code also does NOT include the text label, for reasons that
+    (This code also does NOT include the text label, it just draws the
+    lines and arrows, for reasons that
     will become clearer shortly.)
     The idea with this approach is that we set the bounding box of the
     TikZ picture to match the range of x/y values of the two data points
@@ -425,12 +428,7 @@ downViewport("plot_01.panel.1.1.vp")
 grid.points(toyota$disp, toyota$mpg, pch=16, gp=gpar(col="#0080ff"))
 picture <- paste(c(paste0("\\path (", toyotaX[1] + 7, ",", toyotaY[1] - 2, ") ",
                           "node (a) {};"),
-                   paste0("\\draw[->] (a) .. ",
-                          "controls +(left:2cm) and +(right:2cm) .. ",
-                          "(", toyotaX[1] + .2, ",", toyotaY[1], ");"),
-                   paste0("\\draw[->] (a) .. ",
-                          "controls +(left:2cm) and +(right:2cm) .. ",
-                          "(", toyotaX[2] + .2, ",", toyotaY[2], ");"),
+                   path,
                    paste0("\\pgfresetboundingbox\\useasboundingbox (", 
                           toyotaX[1], ",", toyotaY[1], ") rectangle (", 
                           toyotaX[2], ",", toyotaY[2], ");")),
@@ -461,12 +459,7 @@ downViewport("plot_01.panel.1.1.vp")
 grid.points(toyota$disp, toyota$mpg, pch=16, gp=gpar(col="#0080ff"))
 picture <- paste(c(paste0("\\path (", toyotaX[1] + 7, ",", toyotaY[1] - 2, ") ",
                           "node (a) {Toyotas};"),
-                   paste0("\\draw[->] (a) .. ",
-                          "controls +(left:2cm) and +(right:2cm) .. ",
-                          "(", toyotaX[1] + .2, ",", toyotaY[1], ");"),
-                   paste0("\\draw[->] (a) .. ",
-                          "controls +(left:2cm) and +(right:2cm) .. ",
-                          "(", toyotaX[2] + .2, ",", toyotaY[2], ");"),
+                   path,
                    paste0("\\pgfresetboundingbox\\useasboundingbox (", 
                           toyotaX[1], ",", toyotaY[1], ") rectangle (", 
                           toyotaX[2], ",", toyotaY[2], ");")),
@@ -503,7 +496,8 @@ ggplot(temps) +
                 colour=adjustcolor(1, alpha=.5), lwd=3)    
   ]]></rcode>
   <p>
-    We are going to visit the viewports used to draw the 'ggplot2' plot
+    We are going to visit the 'grid' viewports that were
+    used to draw the 'ggplot2' plot
     so a preliminary step is to "force" the 'ggplot2' plot so that we have
     access to its viewports (and grobs).
   </p>
@@ -538,6 +532,9 @@ path <- paste(paste0("(",
                      ")"), 
               collapse=paste0("-", "-"))
   ]]></rcode>
+  <p>
+    The first few locations on that path are shown below.
+  </p>
   <rcode echo="FALSE"><![CDATA[
 cat(substring(path, 1, 60), "...")
   ]]></rcode>
@@ -711,7 +708,10 @@ cat(dvi[start:end], sep="\n")
     Even better, it is possible to write a custom TikZ driver so that
     we can control the TikZ commands in DVI output.
     The 'dvir' package includes a <code>pgfsys-dvir.def</code> file
-    that defines such a driver.  An example of its output is shown below,
+    that defines such a driver and this driver is selected by default
+    by the functions <code>grid.tikzpicture</code>, 
+    <code>grid.tikz</code>, and <code>tikzPreamble</code>.  
+    An example of the DVI output from this driver is shown below,
     again just for the simple straight line TikZ picture
     (note the <code>dvir::</code> prefixes).
   </p>
@@ -730,6 +730,17 @@ cat(dvi[start:end], sep="\n")
     "talk to itself";  it knows what the TikZ output will look like
     because it wrote the TikZ output.
   </p>
+  <p>
+    The <code>TeXengine</code> function has a new <code>special</code>
+    argument so that we can specify how DVI special operations should
+    be handled.  By default, this argument is <code>noSpecial</code>
+    which means that DVI specials are ignored.  If we specify
+    <code>special=tikzSpecial</code>, then TikZ specials are converted
+    to 'grid' drawing (as described in the next section).  The
+    <code>grid.tikzpicture</code> and <code>grid.tikz</code> functions
+    use an <code>engine</code> that uses <code>tikzSpecial</code>
+    by default.
+  </p>
   
   <h3>Converting DVI output to 'grid' grobs</h3>
   <p>
@@ -747,7 +758,7 @@ cat(dvi[start:end], sep="\n")
   </pre>
 
   <p>
-    This DVI content is converted to 'grid' objects as follows:
+    This DVI content is converted to 'grid' drawing as follows:
   </p>
   <ul><li><p><code>begin-picture</code> starts a new off-screen graphics device
         (using <code>void_dev</code> from the 'devoid' package; 
@@ -780,6 +791,8 @@ cat(dvi[start:end], sep="\n")
         closed (if it is not already) and the current path is filled
         using <code>grid::path</code>
         (with colour set to "transparent" so that the border is not drawn).
+      </p><p><code>fill-stroke</code> is also possible, in which case the
+        path is filled and then stroked.
       </p><p>
         After drawing the path,
         the viewport that was pushed by <code>new-path</code>
@@ -939,7 +952,7 @@ tikz files, causing the LaTeX compilation to fail."
     An alternative approach to providing TikZ-like graphics capabilities 
     is to reimplement those capabilities in R.  
     For example, the 'plotrix' package 
-    (<a href="#pkg:plotrix">J, 2006</a>)
+    (<a href="#pkg:plotrix">Lemon, 2006</a>)
     has an <code>arctext</code> function for drawing text along an
     arc of a circle.  Many other packages, like 'ggforce' 
     (<a href="#pkg:ggforce">Pedersen, 2020b</a>),
@@ -950,7 +963,7 @@ tikz files, causing the LaTeX compilation to fail."
   <p>
     This does not remove the need for
     R packages that implement new graphics features.  There are R packages
-    that add capabilities that (as far as I can tell)
+    that add capabilities that 
     are not (easily) available in TikZ,
     like 'vwline' (<a href="#pkg:vwline">Murrell, 2019</a>).  
     Furthermore, the 'dvir' package only
@@ -980,7 +993,8 @@ tikz files, causing the LaTeX compilation to fail."
     a different coordinate system.
   </p>
   <p>
-    The PGF system also allows more complex control of coordinate systems,
+    The underlying 
+    PGF system also allows more complex control of coordinate systems,
     including a "canvas transform" that can include scaling and shearing
     transformations (in addition to translation and rotation).
     The 'dvir' package can currently only cope with this canvas transform
@@ -988,7 +1002,7 @@ tikz files, causing the LaTeX compilation to fail."
     This means that some TikZ pictures will not be drawn correctly.
     On the other hand, the PGF/TikZ manual provides
     stern warnings about using the canvas transformation matrix,
-    so hopefully this limitation will not be common.
+    so hopefully this limitation will not be encountered very often.
   </p>
   <p>
     Another difficulty with the TikZ support in 'dvir' is
@@ -1029,7 +1043,7 @@ tikz files, causing the LaTeX compilation to fail."
     graphics systems by adding support in 'dvir' for other sets 
     of DVI specials.
     Unfortunately, support for one major alternative, PStricks 
-    (<a href="#pstricks">Zandt, 2007</a>),
+    (<a href="#pstricks">Van Zandt, 2007</a>),
     does not make sense because PStricks produces DVI specials that are
     specifically designed for PostScript output.  It does not have 
     the concept of multiple backends like TikZ does.
@@ -1087,7 +1101,8 @@ tikz files, causing the LaTeX compilation to fail."
   <p>
     Murrell, P. (2020). 
     "Adding TikZ support to 'dvir'" 
-    Technical Report 2020-??, Department of Statistics, The University of Auckland. 
+    Technical Report 2020-??, Department of Statistics, 
+    The University of Auckland. version 1. 
     [ <a href="how-to-cite.bib">bib</a> |
       <a href="http://doi.org/10.17608/k6.auckland.12133281">DOI</a> | 
       <a href="http://stattech.blogs.auckland.ac.nz/">http</a> ]
@@ -1112,20 +1127,20 @@ Dahl, D. B., Scott, D., Roosen, C., Magnusson, A., and Swinton, J. (2019).
 <a href="https://CRAN.R-project.org/package=xtable">http</a> ]
 
 </dd><dt>
-[<a name="pkg:plotrix">J, 2006</a>]
-</dt><dd>
-J, L. (2006).
- Plotrix: a package in the red light district of r.
- <em>R-News</em>, 6(4):8&#x002D;&#x002D;12.
-[ <a href="dvir-tikz-bib_bib.html#pkg:plotrix">bib</a> ]
-
-</dd><dt>
 [<a name="Knuth:1986:TEX:1102013">Knuth, 1986</a>]
 </dt><dd>
 Knuth, D. E. (1986).
  <em>The TeXbook</em>.
  Addison-Wesley Professional.
 [ <a href="dvir-tikz-bib_bib.html#Knuth:1986:TEX:1102013">bib</a> ]
+
+</dd><dt>
+[<a name="pkg:plotrix">Lemon, 2006</a>]
+</dt><dd>
+Lemon, J. (2006).
+ Plotrix: a package in the red light district of R.
+ <em>R-News</em>, 6(4):8&#x002D;&#x002D;12.
+[ <a href="dvir-tikz-bib_bib.html#pkg:plotrix">bib</a> ]
 
 </dd><dt>
 [<a name="pkg:grImport">Murrell, 2009</a>]
@@ -1159,7 +1174,7 @@ Murrell, P. (2019).
 [<a name="murrell-dvir-luatex-2020">Murrell, 2020a</a>]
 </dt><dd>
 Murrell, P. (2020a).
- The agony and the ecstacy: Adding luatex support to 'dvir'.
+ The agony and the ecstacy: Adding LuaTeX support to 'dvir'.
  Technical Report 2020-02, Department of Statistics, The University of
   Auckland.
  version 1.
@@ -1171,7 +1186,7 @@ Murrell, P. (2020a).
 [<a name="murrell-definitions-2020">Murrell, 2020b</a>]
 </dt><dd>
 Murrell, P. (2020b).
- Catching up with r graphics.
+ Catching up with R graphics.
  Technical Report 2020-04, Department of Statistics, The University of
   Auckland.
  version 1.
@@ -1184,7 +1199,7 @@ Murrell, P. (2020b).
 </dt><dd>
 Murrell, P. (2020c).
  <em>dvir: Render DVI Files</em>.
- R package version 0.2-0.
+ R package version 0.3-0.
 [ <a href="dvir-tikz-bib_bib.html#pkg:dvir">bib</a> ]
 
 </dd><dt>
@@ -1234,9 +1249,9 @@ Sharpsteen, C. and Bracken, C. (2020).
 <a href="https://CRAN.R-project.org/package=tikzDevice">http</a> ]
 
 </dd><dt>
-[<a name="pstricks">Zandt, 2007</a>]
+[<a name="pstricks">Van Zandt, 2007</a>]
 </dt><dd>
-Zandt, T. V. (2007).
+Van Zandt, T. (2007).
  <em>PSTricks: PostScript macros for Generic TeX</em>.
 [ <a href="dvir-tikz-bib_bib.html#pstricks">bib</a> | 
 <a href="https://tug.org/PSTricks/main.cgi?file=doc/docs">http</a> ]
