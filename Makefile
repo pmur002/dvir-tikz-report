@@ -33,7 +33,7 @@ docker:
 
 web:
 	make docker
-	cp -r ../dvir-tikz-report/* ~/Web/Reports/dvir/luatex/
+	cp -r ../dvir-tikz-report/* ~/Web/Reports/dvir/tikz/
 
 zip:
 	make docker
